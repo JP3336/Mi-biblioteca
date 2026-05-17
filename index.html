@@ -34,6 +34,8 @@
     canvas { max-width:100%; background:#0b1220; border-radius:12px; padding:8px; }
     .rec { border-left:4px solid var(--accent); margin:8px 0; padding:10px; background:#141c2d; border-radius:10px; }
     .small { font-size:13px; }
+    .fileLabel { display:block; text-align:center; border:1px solid var(--accent); background:var(--accent); color:#111827; font-weight:800; border-radius:14px; padding:16px; font-size:17px; cursor:pointer; }
+    .fileLabel:active { transform:scale(.99); }
     @media (max-width:900px) { .grid {grid-template-columns:1fr 1fr;} .controls {grid-template-columns:1fr;} .two {grid-template-columns:1fr;} th {position:static;} }
   </style>
 </head>
@@ -43,6 +45,14 @@
   <div class="subtitle">Explora tu export de Goodreads: busca títulos, filtra por nota/año/estado, detecta patrones y revisa recomendaciones.</div>
 </header>
 <main>
+  <section class="card import-zone" style="margin-bottom:14px; border:2px solid var(--accent);">
+    <h2 style="margin-top:0">Importar biblioteca</h2>
+    <p class="muted">En iPhone toca el botón de abajo y elige tu <b>goodreads_library_export.csv</b> desde Archivos. Se guardará en este navegador para no cargarlo cada vez.</p>
+    <label for="fileTop" class="fileLabel">📚 Elegir CSV de Goodreads</label>
+    <input type="file" id="fileTop" accept=".csv,text/csv,application/vnd.ms-excel" style="display:block; width:100%; margin-top:10px; padding:14px; background:#111827;" />
+    <div id="importStatus" class="small muted" style="margin-top:8px"></div>
+  </section>
+
   <section class="grid" id="metrics"></section>
   <section class="card" style="margin-top:14px">
     <div class="controls">
@@ -157,15 +167,41 @@ function renderRecs() {
 }
 function parseCSV(text) {
  let rows=[], row=[], cur='', q=false; for(let i=0;i<text.length;i++){let ch=text[i], nx=text[i+1]; if(ch==='"'){ if(q&&nx==='"'){cur+='"';i++;} else q=!q; } else if(ch===','&&!q){row.push(cur);cur='';} else if((ch==='
-'||ch==='')&&!q){ if(ch===''&&nx==='
+'||ch==='
+')&&!q){ if(ch==='
+'&&nx==='
 ') i++; row.push(cur); if(row.some(x=>x!=='')) rows.push(row); row=[]; cur='';} else cur+=ch; } row.push(cur); rows.push(row);
  let head=rows.shift().map(h=>h.trim()); return rows.map(r=>Object.fromEntries(head.map((h,i)=>[h,r[i]||''])));
 }
 function refresh() { setupFilters(); renderMetrics(); renderTable(); renderStats(); renderTaste(); renderRecs(); }
 ['q','shelf','rating','year'].forEach(id=>$(id).addEventListener('input', renderTable)); $('reset').onclick=()=>{['q','shelf','rating','year'].forEach(id=>$(id).value=''); renderTable();};
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.style.display='none'); $(b.dataset.tab).style.display='block'; if(b.dataset.tab==='stats') renderStats();});
-$('file').addEventListener('change', e=>{let f=e.target.files[0]; if(!f) return; let r=new FileReader(); r.onload=()=>{DATA=parseCSV(r.result); refresh();}; r.readAsText(f);});
-$('loadPaste').onclick=()=>{DATA=parseCSV($('paste').value); refresh();};
+function loadCSVFile(file){
+  if(!file) return;
+  const status=$('importStatus');
+  if(status) status.textContent='Cargando: '+file.name+'…';
+  let r=new FileReader();
+  r.onload=()=>{
+    try {
+      DATA=parseCSV(r.result);
+      localStorage.setItem('goodreads_csv_text', r.result);
+      refresh();
+      if(status) status.textContent='CSV cargado: '+DATA.length+' libros. Guardado en este iPhone/navegador.';
+      document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+      $('table').style.display='block';
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelector('[data-tab="table"]').classList.add('active');
+    } catch(err) {
+      if(status) status.textContent='No he podido leer el CSV. Prueba a exportarlo de nuevo desde Goodreads.';
+      alert('No he podido leer el CSV: '+err.message);
+    }
+  };
+  r.readAsText(file, 'utf-8');
+}
+$('file').addEventListener('change', e=>loadCSVFile(e.target.files && e.target.files[0]));
+$('fileTop').addEventListener('change', e=>loadCSVFile(e.target.files && e.target.files[0]));
+$('loadPaste').onclick=()=>{DATA=parseCSV($('paste').value); localStorage.setItem('goodreads_csv_text', $('paste').value); refresh();};
+try { const saved=localStorage.getItem('goodreads_csv_text'); if(saved){ DATA=parseCSV(saved); const st=$('importStatus'); if(st) st.textContent='CSV recuperado de este iPhone/navegador: '+DATA.length+' libros.'; } } catch(e) {}
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 refresh();
 </script>

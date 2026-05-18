@@ -3,64 +3,117 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Mi Biblioteca</title>
 
 <link rel="apple-touch-icon" sizes="180x180" href="https://cdn-icons-png.flaticon.com/512/2232/2232688.png">
-
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Biblioteca">
 
 <style>
+*{box-sizing:border-box}
 
 body{
-font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-margin:20px;
-background:#f5f5f5;
-color:#222;
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:linear-gradient(180deg,#f3efe7,#fafafa);
+  color:#1f2933;
 }
 
-h1{
-font-size:28px;
+.app{
+  max-width:900px;
+  margin:0 auto;
+  padding:22px;
 }
 
-input{
-width:100%;
-padding:12px;
-margin-top:10px;
-border-radius:10px;
-border:1px solid #ccc;
-font-size:16px;
+.header{
+  background:#1f2933;
+  color:white;
+  padding:24px;
+  border-radius:24px;
+  margin-bottom:18px;
+  box-shadow:0 8px 24px rgba(0,0,0,.16);
+}
+
+.header h1{
+  margin:0;
+  font-size:30px;
+}
+
+.header p{
+  margin:8px 0 0;
+  opacity:.85;
+}
+
+.panel{
+  background:white;
+  border-radius:22px;
+  padding:18px;
+  margin-bottom:16px;
+  box-shadow:0 4px 18px rgba(0,0,0,.08);
+}
+
+input,select,button{
+  width:100%;
+  padding:13px;
+  margin-top:10px;
+  border-radius:14px;
+  border:1px solid #d0d7de;
+  font-size:16px;
+}
+
+button,.button{
+  display:inline-block;
+  background:#10a37f;
+  color:white;
+  border:none;
+  text-decoration:none;
+  text-align:center;
+  font-weight:700;
+  cursor:pointer;
 }
 
 .book{
-background:white;
-padding:15px;
-margin-top:15px;
-border-radius:14px;
-box-shadow:0 2px 8px rgba(0,0,0,0.08);
+  background:white;
+  border-radius:20px;
+  padding:16px;
+  margin-top:14px;
+  box-shadow:0 3px 14px rgba(0,0,0,.08);
 }
 
-.button{
-display:inline-block;
-margin-top:10px;
-padding:10px 14px;
-background:#10a37f;
-color:white;
-text-decoration:none;
-border-radius:10px;
-font-weight:600;
+.book h3{
+  margin:0 0 6px;
+  font-size:19px;
 }
 
 .small{
-color:#666;
-font-size:14px;
-margin-top:4px;
+  color:#6b7280;
+  font-size:14px;
+  margin-top:4px;
 }
 
-</style>
+.stats{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+}
 
+.stat{
+  background:#f8fafc;
+  border-radius:16px;
+  padding:14px;
+  text-align:center;
+}
+
+.stat strong{
+  display:block;
+  font-size:24px;
+}
+
+@media(min-width:700px){
+  .stats{grid-template-columns:repeat(4,1fr)}
+}
+</style>
 </head>
 <body>
 <div class="wrap">

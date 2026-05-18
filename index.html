@@ -1,1 +1,146 @@
-index.html
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi biblioteca Goodreads</title>
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#172033;background:#f5f7fb}
+    body{margin:0;padding:18px;background:#f5f7fb}
+    .wrap{max-width:980px;margin:0 auto}
+    .card{background:white;border:1px solid #e5e8f0;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 2px 10px rgba(20,30,55,.06)}
+    h1{font-size:28px;margin:6px 0 4px} h2{font-size:18px;margin:0 0 10px}
+    .muted{color:#667085;font-size:14px}.status{padding:10px;border-radius:12px;background:#eef4ff;margin-top:10px;font-size:14px}
+    input,select,button,a.btn{font-size:16px;border-radius:12px;border:1px solid #cfd6e4;padding:10px;background:white;color:#172033;text-decoration:none;display:inline-block}
+    button,a.btn{background:#172033;color:white;border:none;font-weight:700;cursor:pointer}
+    .grid{display:grid;grid-template-columns:1fr;gap:10px}@media(min-width:720px){.grid{grid-template-columns:2fr 1fr 1fr 1fr}}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:720px){.stats{grid-template-columns:repeat(4,1fr)}}
+    .stat{background:#f8fafc;border:1px solid #e5e8f0;border-radius:14px;padding:12px}.stat b{font-size:24px;display:block}
+    .book{border-top:1px solid #eef0f5;padding:14px 0}.book:first-child{border-top:none}.title{font-weight:800;font-size:17px}.meta{color:#667085;font-size:14px;margin:4px 0 10px}.stars{color:#9a6700;font-weight:700}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.pill{background:#eef2f7;border-radius:999px;padding:4px 9px;font-size:12px;color:#344054}
+    #file{width:100%;box-sizing:border-box;background:#fff}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📚 Mi biblioteca</h1>
+  <div class="muted">Importa tu CSV de Goodreads, busca, filtra y abre ChatGPT con un prompt de resumen para cada libro.</div>
+
+  <div class="card">
+    <h2>1. Importar CSV</h2>
+    <input id="file" type="file" accept=".csv,text/csv">
+    <div id="status" class="status">Elige tu archivo <b>goodreads_library_export.csv</b>.</div>
+  </div>
+
+  <div class="card">
+    <h2>2. Buscar y filtrar</h2>
+    <div class="grid">
+      <input id="q" placeholder="Buscar título, autor, editorial...">
+      <select id="rating"><option value="">Todas las notas</option><option value="5">5 estrellas</option><option value="4">4 estrellas</option><option value="3">3 estrellas</option><option value="2">2 estrellas</option><option value="1">1 estrella</option><option value="0">Sin valorar</option></select>
+      <select id="shelf"><option value="">Todas las estanterías</option></select>
+      <select id="sort"><option value="date">Fecha leído</option><option value="rating">Nota</option><option value="title">Título</option><option value="author">Autor</option></select>
+    </div>
+  </div>
+
+  <div class="card stats" id="stats"></div>
+  <div class="card"><h2>Libros</h2><div id="results" class="muted">Aún no hay libros cargados.</div></div>
+</div>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  let books = [];
+
+  function parseCSV(text){
+    text = text.replace(/^\uFEFF/, '');
+    const rows=[]; let row=[], field='', quote=false;
+    for(let i=0;i<text.length;i++){
+      const c=text[i], n=text[i+1];
+      if(quote){
+        if(c==='"' && n==='"'){ field+='"'; i++; }
+        else if(c==='"'){ quote=false; }
+        else { field+=c; }
+      } else {
+        if(c==='"') quote=true;
+        else if(c===','){ row.push(field); field=''; }
+        else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+        else if(c==='\r'){}
+        else field+=c;
+      }
+    }
+    row.push(field); rows.push(row);
+    const headers = rows.shift().map(h=>h.trim());
+    return rows.filter(r=>r.some(x=>String(x||'').trim())).map(r=>{
+      const o={}; headers.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o;
+    });
+  }
+
+  function val(b, names){ for(const n of names){ if(b[n]!==undefined && b[n]!==null && String(b[n]).trim()!=='') return String(b[n]).trim(); } return ''; }
+  function rating(b){ return parseInt(val(b,['My Rating','My rating','Rating'])) || 0; }
+  function title(b){ return val(b,['Title']); }
+  function author(b){ return val(b,['Author','Author l-f','Additional Authors']); }
+  function shelves(b){ return val(b,['Bookshelves','Exclusive Shelf']); }
+  function dateRead(b){ return val(b,['Date Read','Date read']); }
+  function pages(b){ return val(b,['Number of Pages','Number of pages']); }
+  function publisher(b){ return val(b,['Publisher']); }
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+  function stars(n){ return n ? '★'.repeat(n)+'☆'.repeat(5-n) : 'Sin valorar'; }
+
+  function chatUrl(b){
+    const prompt = `Hazme un resumen claro y útil del libro "${title(b)}" de ${author(b)}. Incluye: 1) de qué va, 2) temas principales, 3) estilo literario, 4) contexto del autor, 5) por qué podría gustarme según mi perfil lector: literatura histórica, decadencia de civilizaciones, ética, tecnología, poder e individuo. Evita spoilers importantes salvo que avises.`;
+    return 'https://chat.openai.com/?q=' + encodeURIComponent(prompt);
+  }
+
+  function refreshShelves(){
+    const sel=$('shelf'); const current=sel.value;
+    const set=new Set(); books.forEach(b=>shelves(b).split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>set.add(x)));
+    sel.innerHTML='<option value="">Todas las estanterías</option>'+Array.from(set).sort().map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+    sel.value=current;
+  }
+
+  function filtered(){
+    const q=$('q').value.toLowerCase().trim(), r=$('rating').value, sh=$('shelf').value;
+    let arr=books.filter(b=>{
+      const text=[title(b),author(b),publisher(b),shelves(b)].join(' ').toLowerCase();
+      return (!q || text.includes(q)) && (!r || String(rating(b))===r) && (!sh || shelves(b).includes(sh));
+    });
+    const sort=$('sort').value;
+    arr.sort((a,b)=>{
+      if(sort==='rating') return rating(b)-rating(a) || title(a).localeCompare(title(b));
+      if(sort==='title') return title(a).localeCompare(title(b));
+      if(sort==='author') return author(a).localeCompare(author(b));
+      return (dateRead(b)||'').localeCompare(dateRead(a)||'');
+    });
+    return arr;
+  }
+
+  function render(){
+    const arr=filtered();
+    const read=books.filter(b=>shelves(b).includes('read') || val(b,['Exclusive Shelf'])==='read').length;
+    const avg=books.filter(b=>rating(b)>0).reduce((a,b)=>a+rating(b),0) / Math.max(1, books.filter(b=>rating(b)>0).length);
+    $('stats').innerHTML=`<div class="stat"><b>${books.length}</b><span>Total</span></div><div class="stat"><b>${read}</b><span>Leídos</span></div><div class="stat"><b>${avg.toFixed(2)}</b><span>Nota media</span></div><div class="stat"><b>${arr.length}</b><span>Resultado</span></div>`;
+    if(!books.length){ $('results').innerHTML='Aún no hay libros cargados.'; return; }
+    if(!arr.length){ $('results').innerHTML='No hay resultados con esos filtros.'; return; }
+    $('results').innerHTML=arr.slice(0,120).map(b=>`<div class="book"><div class="title">${escapeHtml(title(b))}</div><div class="meta">${escapeHtml(author(b))} ${publisher(b)?' · '+escapeHtml(publisher(b)):''} ${pages(b)?' · '+escapeHtml(pages(b))+' págs.':''}</div><div class="row"><span class="stars">${stars(rating(b))}</span>${dateRead(b)?`<span class="pill">Leído: ${escapeHtml(dateRead(b))}</span>`:''}${shelves(b)?`<span class="pill">${escapeHtml(shelves(b))}</span>`:''}</div><div style="margin-top:10px"><a class="btn" target="_blank" rel="noopener" href="${chatUrl(b)}">✨ Resumir con ChatGPT</a></div></div>`).join('') + (arr.length>120?`<div class="muted">Mostrando 120 de ${arr.length}. Afina la búsqueda.</div>`:'');
+  }
+
+  $('file').addEventListener('change', e=>{
+    const f=e.target.files && e.target.files[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        books=parseCSV(String(reader.result||''));
+        if(!books.length) throw new Error('No se encontraron filas en el CSV.');
+        localStorage.setItem('goodreads_csv', String(reader.result||''));
+        $('status').innerHTML=`✅ CSV cargado: <b>${escapeHtml(f.name)}</b>. Libros detectados: <b>${books.length}</b>.`;
+        refreshShelves(); render();
+      }catch(err){ $('status').innerHTML='❌ Error leyendo CSV: '+escapeHtml(err.message); }
+    };
+    reader.onerror=()=>{$('status').innerHTML='❌ No he podido leer el archivo.'};
+    reader.readAsText(f, 'UTF-8');
+  });
+  ['q','rating','shelf','sort'].forEach(id=>$(id).addEventListener('input', render));
+  try{ const saved=localStorage.getItem('goodreads_csv'); if(saved){ books=parseCSV(saved); $('status').innerHTML=`✅ CSV recuperado del iPhone. Libros: <b>${books.length}</b>.`; refreshShelves(); render(); } }catch(e){}
+  render();
+})();
+</script>
+</body>
+</html>

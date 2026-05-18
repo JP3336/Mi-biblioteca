@@ -145,7 +145,7 @@
 
     <section class="panel">
       <div class="grid">
-        <input id="search" type="search" placeholder="Buscar por título, autor, editorial..." />
+        <input id="search" type="search" placeholder="Buscar por título, autor o editorial (aunque esté incompleto)..." />
         <select id="statusFilter"><option value="">Todos</option></select>
         <select id="ratingFilter"><option value="">Todas las notas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option><option value="0">Sin valorar</option></select>
         <select id="sortFilter"><option value="dateRead">Últimos leídos</option><option value="rating">Mejor nota</option><option value="title">Título</option><option value="author">Autor</option></select>
@@ -216,11 +216,33 @@
     return 'https://chatgpt.com/?q=' + encodeURIComponent(prompt);
   }
 
+  function norm(s){
+    return String(s||'')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-z0-9ñ\s]/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  function searchText(b){
+    return norm([b.title,b.author,b.publisher,b.shelf,b.shelves].join(' '));
+  }
+
+  function matchesQuery(b, raw){
+    const q=norm(raw);
+    if(!q) return true;
+    const hay=searchText(b);
+    const parts=q.split(' ').filter(Boolean);
+    // Busca por palabras sueltas: "gar mar" encuentra Gabriel García Márquez.
+    return parts.every(part=>hay.includes(part));
+  }
+
   function render(){
-    const q=$('search').value.trim().toLowerCase(), st=$('statusFilter').value, rf=$('ratingFilter').value, sort=$('sortFilter').value;
+    const q=$('search').value, st=$('statusFilter').value, rf=$('ratingFilter').value, sort=$('sortFilter').value;
     let list=books.filter(b=>{
-      const hay=(b.title+' '+b.author+' '+b.publisher+' '+b.shelves).toLowerCase();
-      if(q && !hay.includes(q)) return false;
+      if(!matchesQuery(b,q)) return false;
       if(st && b.shelf!==st) return false;
       if(rf==='5' && b.rating!==5) return false;
       if(rf==='4' && b.rating<4) return false;
